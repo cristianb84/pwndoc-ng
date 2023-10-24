@@ -8,6 +8,25 @@ module.exports = function(app, io) {
     var utils = require('../lib/utils');
     var Settings = require('mongoose').model('Settings');
 
+//    const { getAdditionalFile } = require('./fileHandler');
+const fs = require('fs').promises;
+
+async function getAdditionalFile(auditId) {
+    try {
+        // Construct the path to your file based on the auditId
+        const filePath = `/app/src/lib/output/output_${auditId}.json`;
+
+        // Read the file from the specified path
+        const fileContent = await fs.readFile(filePath);
+
+        return fileContent;
+    } catch (error) {
+        // Handle any errors that occur while reading the file
+        console.error('Error reading additional file:', error);
+        throw error;  // Re-throw the error to be handled by the calling code
+    }
+}
+
     /* ### AUDITS LIST ### */
 
     // Get audits list of user (all for admin) with regex filter on findings
@@ -413,9 +432,30 @@ module.exports = function(app, io) {
 
             if (!audit.template)
                 throw ({fn: 'BadParameters', message: 'Template not defined'})
+//Code Added
+	// Find the Test ID in customFields
+        let customFields = audit.customFields;
+        let testID ="";
+        for(let field of customFields) {
+                if(field.customField.label === "Test ID") {
+                        testID = field.text;
+                        break;
+                }
+        }
+	// Create the custom filename
+        let filename = `${audit.name} - ${testID} - penetration test report`;
+	filename = filename.replace(/[\\\/:*?"<>|]/g, "");
+//Code Ended
 
             var reportDoc = await reportGenerator.generateDoc(audit);
-            Response.SendFile(res, `${audit.name.replace(/[\\\/:*?"<>|]/g, "")}.${audit.template.ext || 'docx'}`, reportDoc);
+	    var additionalFile = await getAdditionalFile(testID);
+	    var archive = new(require('archiver'))('zip');
+            archive.append(reportDoc, { name: `${filename}.${audit.template.ext || 'docx'}` });
+            archive.append(additionalFile, { name: `output_${testID}.json` });  // Adjust the name and extension as needed
+//            Response.SendFile(res, `${filename}.${audit.template.ext || 'docx'}`, reportDoc);
+            archive.finalize();
+            res.attachment(`${filename}.zip`);
+            archive.pipe(res);
         })
         .catch(err => {
             if (err.code === "ENOENT")

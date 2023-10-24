@@ -4,7 +4,7 @@
         "host": "",
         "database": {
             "name": "pwndoc",
-            "server": "mongo-pwndoc-ng",
+            "server": "mongo-pwndoc-ng-dev",
             "port": "27017"
         },
         "apidoc": true
@@ -17,7 +17,9 @@
             "server": "mongo-pwndoc-ng",
             "port": "27017"
         },
-        "apidoc": false
+        "apidoc": false,
+        "jwtSecret": "8047ef32f0b4febb9e50f50e5e292810947645c3524cd959023474b1c0e270fe",
+        "jwtRefreshSecret": "772af476fe3b57ad4e4851b013c0c72db3934f0a50094328730355d10252f313"
     },
     "test": {
         "port": 6262,

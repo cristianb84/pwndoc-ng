@@ -13,6 +13,10 @@ var Settings = require('mongoose').model('Settings');
 var CVSS31 = require('./cvsscalc31.js');
 var translate = require('../translate')
 var $t
+//Code Added
+var assign = require("lodash/assign"); // added
+var last = require("lodash/last"); // added
+//
 
 // Generate document with docxtemplater
 async function generateDoc(audit) {
@@ -30,6 +34,9 @@ async function generateDoc(audit) {
     var opts = {};
     // opts.centered = true;
     opts.getImage = function(tagValue, tagName) {
+//console.log("start of getImage");
+//console.log("TagName value is : "+tagName);
+//console.log("TagValue value is : "+tagValue);
         if (tagValue !== "undefined") {
             tagValue = tagValue.split(",")[1];
             return Buffer.from(tagValue, 'base64');
@@ -37,6 +44,9 @@ async function generateDoc(audit) {
         // return fs.readFileSync(tagValue, {encoding: 'base64'});
     }
     opts.getSize = function(img, tagValue, tagName) {
+//console.log ("Start of getSize!");
+//console.log("TagName value is : "+tagName);
+//console.log("TagValue value is : "+tagValue);
         if (img) {
             var sizeObj = sizeOf(img);
             var width = sizeObj.width;
@@ -56,11 +66,36 @@ async function generateDoc(audit) {
                     width = 400;
                 }
             }
-            else if (sizeObj.width > 600) {
-                var divider = sizeObj.width / 600;
-                width = 600;
-                height = Math.floor(sizeObj.height / divider);
-            }
+//            else if (sizeObj.width > 600) {
+//                var divider = sizeObj.width / 600;
+//                width = 600;
+//                height = Math.floor(sizeObj.height / divider);
+//            }
+	    else if (tagName === "image") {
+//console.log ("getSize called, Now in the maxSize 'else if'");
+//console.log("tagValue:", tagValue);
+//		var maxWidth = tagValue.maxSize[0];
+//		var maxHeight = tagValue.maxSize[1];
+		var maxWidth = 720;
+		var maxHeight = 555;
+//console.log("Original Width "+width);
+//console.log("Original Height "+height);
+		var widthRatio = width / maxWidth;
+		var heightRatio = height / maxHeight;
+//	console.log ("I am in maxSize");
+		if (widthRatio < 1 && heightRatio < 1) {
+			return [width,height];
+		}
+		let finalWidth, finalHeight;
+		if (widthRatio > heightRatio) {
+			finalWidth = maxWidth;
+			finalHeight = sizeObj.height / widthRatio;
+		} else {
+			finalHeight = maxHeight;
+			finalWidth = sizeObj.width / heightRatio;
+		}
+		return [Math.round(finalWidth), Math.round(finalHeight)];
+	    }
             return [width,height];
         }
         return [0,0]
@@ -109,6 +144,20 @@ exports.generateDoc = generateDoc;
 
 // *** Angular parser filters ***
 
+//Code Added
+//expressions.filters.maxSize = function (input, width, height) {
+//    console.log("maxSize called with input:", input);
+//    console.log("maxSize called with width:", width);
+//    console.log("maxSize called with height:", height);
+
+//    return {
+//	tagName: image,
+//        tagValue: input,
+//        maxSize: [width, height],
+//    };
+//};
+//
+
 // Keep only first finding with a given title
 expressions.filters.uniqFindings = function (findings) {
     if (!findings) return findings;
@@ -132,6 +181,8 @@ expressions.filters.uniqFindings = function (findings) {
 expressions.filters.bookmarkCreate = function(input, refid = null) {
     let rand_id = Math.floor(Math.random() * 1000000 + 1000);
     let parsed_id = (refid ? refid : input).replace(/[^a-zA-Z0-9_]/g, '_').substring(0,40);
+
+    input = input.replace(/&/g, "&amp;"); //added
 
     // Accept both text and OO-XML as input.
     if (input.indexOf('<w:r') !== 0) {
@@ -294,6 +345,8 @@ expressions.filters.lines = function(input) {
 
 // Creates a hyperlink: {@input | linkTo: 'https://example.com' | p}
 expressions.filters.linkTo = function(input, url) {
+    url = url.replace(/&/g, "&amp;");
+    input = input.replace(/&/g, "&amp;");
     return '<w:r><w:fldChar w:fldCharType="begin"/></w:r>'
         + '<w:r><w:instrText xml:space="preserve"> HYPERLINK "' + url + '" </w:instrText></w:r>'
         + '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
@@ -519,11 +572,13 @@ var angularParser = function(tag) {
     return {
         get: function(scope, context) {
             let obj = {};
+	    const index = last(context.scopePathItem); //added
             const scopeList = context.scopeList;
             const num = context.num;
             for (let i = 0, len = num + 1; i < len; i++) {
                 obj = _.merge(obj, scopeList[i]);
             }
+	    obj = assign(obj, { $index: index }); //added
             return expr(scope, obj);
         }
     };
@@ -754,6 +809,14 @@ async function prepAuditData(data, settings) {
         }
     }
 
+//Code Added - to support Limited Scope field
+    if (result.out_scope && result.out_scope.length > 0){
+        const myArray = {} 
+        myArray["targets"] = prepTools(result["out_scope"][0].text)
+        result.out_scope = myArray
+    }
+//
+
     result.company = {}
     if (data.company) {
         result.company.name = data.company.name || "undefined"
@@ -801,6 +864,9 @@ async function prepAuditData(data, settings) {
     result.scope = data.scope.toObject() || []
 
     result.findings = []
+//Code Added - to support counting findings
+////let iii = 1;
+//
     for (finding of data.findings) {
         var tmpCVSS = CVSS31.calculateCVSSFromVector(finding.cvssv3);
         var tmpFinding = {
@@ -818,6 +884,14 @@ async function prepAuditData(data, settings) {
             category: $t(finding.category) || $t("No Category"),
             identifier: "IDX-" + utils.lPad(finding.identifier)
         }
+//Code Added
+//        if (finding.category != "Past_Vulns"){
+//                tmpFinding['no'] = iii++;
+//                //console.log(finding);
+//        }else{
+//        tmpFinding['no'] ="";
+//        }  
+//
         // Remediation Complexity color 
         if (tmpFinding.remediationComplexity === 1) tmpFinding.remediation.cellColorComplexity = cellLowColorRemediationComplexity
         else if (tmpFinding.remediationComplexity === 2) tmpFinding.remediation.cellColorComplexity = cellMediumColorRemediationComplexity
@@ -899,7 +973,21 @@ async function prepAuditData(data, settings) {
         }
         result.findings.push(tmpFinding)
     }
-
+//Code Added
+result.findings.sort(function(a, b){
+return b.cvss.baseMetricScore - a.cvss.baseMetricScore;
+});
+let iii = 1;
+for (finding of result.findings){
+        if (finding.category != "Past_Vulns"){
+                finding['no'] = iii++;
+                //console.log(finding);
+        }else{
+        finding['no'] ="";
+        } 
+}
+//console.log(result.findings);
+//
     result.categories = _
         .chain(result.findings)
         .groupBy("category")
@@ -926,8 +1014,14 @@ async function prepAuditData(data, settings) {
             for (field of section.customFields) {
                 var fieldType = field.customField.fieldType
                 var label = field.customField.label
-                if (fieldType === 'text')
+//Code Modified to support "Tools Used"
+                if (fieldType === 'text'){
+                        if (field.customField.displaySub === "Tools Used")
+                        formatSection["tools"] = prepTools(field.text)
+                        else 
                     formatSection[_.deburr(label.toLowerCase()).replace(/\s/g, '').replace(/[^\w]/g, '_')] = await splitHTMLParagraphs(field.text)
+		}
+//
                 else if (fieldType !== 'space')
                     formatSection[_.deburr(label.toLowerCase()).replace(/\s/g, '').replace(/[^\w]/g, '_')] = field.text
             }
@@ -935,6 +1029,31 @@ async function prepAuditData(data, settings) {
         result[section.field] = formatSection
     }
     replaceSubTemplating(result)
+
+//Code Added
+//console.log(JSON.stringify(result));
+const fs = require('fs');
+const path = require ('path');
+const outputData = JSON.stringify(result);
+const outputDir = path.join(__dirname, 'output');
+const testId = result.testid;
+const outputName = 'output_'+testId+'.json';
+//console.log(outputData);
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir);
+} else {
+  // If the output folder exists, remove any existing output files
+  const outputFiles = fs.readdirSync(outputDir).filter(file => file.startsWith('output') && file.endsWith('.json'));
+  outputFiles.forEach(file => fs.unlinkSync(path.join(outputDir, file)));
+}
+
+// Write the result to a file
+const outputPath = path.join(outputDir, outputName);
+fs.writeFileSync(outputPath, JSON.stringify(result));
+console.log(`Result saved to ${outputPath}`);
+console.log('To copy the file from the container, execute : sudo docker cp pwndoc-ng-backend:'+outputPath+' .');
+//
+
     return result
 }
 
@@ -984,3 +1103,22 @@ function replaceSubTemplating(o, originalData = o){
         })
     }
 }
+
+//Code Added
+function prepTools (text) {
+        var result = []
+        if (!text)
+                return result
+        var splitted = text.split("</p><p>")
+        for (value of splitted){
+                var valuetmp = value.replace("<p>","")
+                valuetmp = valuetmp.replace("</p>","")
+                var tooltmp = valuetmp.split(" | ")
+                var name = tooltmp[0]
+                var desc = tooltmp[1]
+                result.push({name: name, desc: desc})
+        }
+//      console.log(result);
+        return result
+}
+//

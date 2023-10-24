@@ -13,7 +13,7 @@ services:
     networks:
       - backend
 
-  backend:
+  pwndoc-ng-backend:
     build: ./backend
     image: pwndoc-ng/pwndoc-ng:backend
     container_name: pwndoc-ng-backend
@@ -32,7 +32,7 @@ services:
     networks:
       - backend
 
-  frontend:
+  pwndoc-ng-frontend:
     build: ./frontend
     image: pwndoc-ng/pwndoc-ng:frontend
     container_name: pwndoc-ng-frontend
@@ -48,3 +48,8 @@ volumes:
 networks:
   backend:
       driver: bridge
+      ipam:
+          driver: default
+          config:
+                - subnet: "172.113.0.0/16"
+                  gateway: "172.113.0.1"
