@@ -14,7 +14,7 @@ const fs = require('fs').promises;
 async function getAdditionalFile(auditId) {
     try {
         // Construct the path to your file based on the auditId
-        const filePath = `/app/src/lib/output/output_${auditId}.json`;
+        const filePath = `/app/src/lib/output/${auditId}.json`;
 
         // Read the file from the specified path
         const fileContent = await fs.readFile(filePath);
@@ -443,7 +443,7 @@ async function getAdditionalFile(auditId) {
                 }
         }
 	// Create the custom filename
-        let filename = `${audit.name} - ${testID} - penetration test report`;
+        let filename = `${testID} - ${audit.name} - penetration test report`;
 	filename = filename.replace(/[\\\/:*?"<>|]/g, "");
 //Code Ended
 
@@ -451,7 +451,7 @@ async function getAdditionalFile(auditId) {
 	    var additionalFile = await getAdditionalFile(testID);
 	    var archive = new(require('archiver'))('zip');
             archive.append(reportDoc, { name: `${filename}.${audit.template.ext || 'docx'}` });
-            archive.append(additionalFile, { name: `output_${testID}.json` });  // Adjust the name and extension as needed
+            archive.append(additionalFile, { name: `${testID}.json` });  // Adjust the name and extension as needed
 //            Response.SendFile(res, `${filename}.${audit.template.ext || 'docx'}`, reportDoc);
             archive.finalize();
             res.attachment(`${filename}.zip`);
