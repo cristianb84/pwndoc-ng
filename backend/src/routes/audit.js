@@ -27,6 +27,7 @@ module.exports = function(app, io) {
                 msg.forEach(audit => {
                     var a = {}
                     a._id = audit._id
+                    a.testid = audit.testid
                     a.name = audit.name
                     a.language = audit.language
                     a.creator = audit.creator
