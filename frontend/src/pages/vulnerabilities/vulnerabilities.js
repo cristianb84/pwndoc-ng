@@ -23,10 +23,11 @@ export default {
             loading: true,
             // Datatable headers
             dtHeaders: [
-                {name: 'title', label: $t('title'), field: 'title', align: 'left', sortable: true},
-                {name: 'category', label: $t('category'), field: 'category', align: 'left', sortable: true},
-                {name: 'type', label: $t('type'), field: 'type', align: 'left', sortable: true},
-                {name: 'action', label: '', field: 'action', align: 'left', sortable: false},
+                { name: 'title', label: $t('title'), field: 'title', align: 'left', sortable: true },
+                { name: 'category', label: $t('category'), field: 'category', align: 'left', sortable: true },
+                { name: 'type', label: $t('type'), field: 'type', align: 'left', sortable: true },
+                { name: 'updatedAt', label: $t('lastUpdated'), field: 'updatedAt', align: 'left', sortable: true },
+                { name: 'action', label: '', field: 'action', align: 'left', sortable: false },
             ],
             // Datatable pagination
             pagination: {
@@ -45,7 +46,7 @@ export default {
             languages: [],
             locale: '',
             // Search filter
-            search: {title: '', type: '', category: '', valid: 0, new: 1, updates: 2},
+            search: {title: '', type: '', category: '', updatedAt: '', valid: 0, new: 1, updates: 2},
             // Errors messages
             errors: {title: ''},
             // Selected or New Vulnerability
@@ -100,6 +101,9 @@ export default {
     },
 
     computed: {
+        lenCurrentTitle: function() {
+            return this.currentVulnerability.details[this.currentDetailsIndex].title.length
+        },
         vulnTypesLang: function() {
             return this.vulnTypes.filter(type => type.locale === this.currentLanguage);
         },
@@ -228,13 +232,15 @@ export default {
 
         updateVulnerability: function() {
             this.cleanErrors();
+
+
             var index = this.currentVulnerability.details.findIndex(obj => obj.title !== '');
             if (index < 0)
                 this.errors.title = $t('err.titleRequired');
             
             if (this.errors.title)
                 return;
-
+              
             VulnerabilityService.updateVulnerability(this.vulnerabilityId, this.currentVulnerability)
             .then(() => {
                 this.getVulnerabilities();
@@ -361,6 +367,7 @@ export default {
                     locale: this.currentLanguage,
                     title: '',
                     vulnType: '',
+                    updatedAt: '',
                     description: '',
                     observation: '',
                     remediation: '',
@@ -415,25 +422,37 @@ export default {
                 return row.details[index].vulnType;         
         },
 
+        getDtUpdatedAt: function(row) {
+            if (!row.updatedAt) {
+                return "Undefined";
+            }
+
+            const formattedDate = new Date(row.updatedAt).toLocaleDateString('es-CL');
+            return formattedDate;
+        },
+        
         customSort: function(rows, sortBy, descending) {
             if (rows) {
                 var data = [...rows];
-
+        
                 if (sortBy === 'type') {
                     (descending)
-                        ? data.sort((a, b) => this.getDtType(b).localeCompare(this.getDtType(a)))
-                        : data.sort((a, b) => this.getDtType(a).localeCompare(this.getDtType(b)))
-                }
-                else if (sortBy === 'title') {
+                        ? data.sort((a, b) => (this.getDtType(b) || '').localeCompare(this.getDtType(a) || ''))
+                        : data.sort((a, b) => (this.getDtType(a) || '').localeCompare(this.getDtType(b) || ''));
+                } else if (sortBy === 'title') {
                     (descending)
-                        ? data.sort((a, b) => this.getDtTitle(b).localeCompare(this.getDtTitle(a)))
-                        : data.sort((a, b) => this.getDtTitle(a).localeCompare(this.getDtTitle(b)))
-                }
-                else if (sortBy === 'category') {
+                        ? data.sort((a, b) => (this.getDtTitle(b) || '').localeCompare(this.getDtTitle(a) || ''))
+                        : data.sort((a, b) => (this.getDtTitle(a) || '').localeCompare(this.getDtTitle(b) || ''));
+                } else if (sortBy === 'updatedAt') {
+                    (descending)
+                        ? data.sort((a, b) => (this.getDtUpdatedAt(b) || '').localeCompare(this.getDtUpdatedAt(a) || ''))
+                        : data.sort((a, b) => (this.getDtUpdatedAt(a) || '').localeCompare(this.getDtUpdatedAt(b) || ''));  
+                } else if (sortBy === 'category') {
                     (descending)
                         ? data.sort((a, b) => (b.category || $t('noCategory')).localeCompare(a.category || $t('noCategory')))
-                        : data.sort((a, b) => (a.category || $t('noCategory')).localeCompare(b.category || $t('noCategory')))
+                        : data.sort((a, b) => (a.category || $t('noCategory')).localeCompare(b.category || $t('noCategory')));
                 }
+        
                 return data;
             }
         },
@@ -441,15 +460,20 @@ export default {
         customFilter: function(rows, terms, cols, getCellValue) {
             var result = rows && rows.filter(row => {
                 var title = this.getDtTitle(row).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                var type = this.getDtType(row).toLowerCase()
                 var category = (row.category || $t('noCategory')).toLowerCase()
+                var type = this.getDtType(row).toLowerCase()
+                var updatedAt = this.getDtUpdatedAt(row)
+                
                 var termTitle = (terms.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                 var termCategory = (terms.category || "").toLowerCase()
                 var termVulnType = (terms.type || "").toLowerCase()
+                var termUpdatedAt = (terms.updatedAt || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+
                 return title.indexOf(termTitle) > -1 && 
-                type.indexOf(termVulnType||"") > -1 &&
-                category.indexOf(termCategory||"") > -1 &&
-                (row.status === terms.valid || row.status === terms.new || row.status === terms.updates)
+                    type.indexOf(termVulnType || "") > -1 &&
+                    category.indexOf(termCategory || "") > -1 &&
+                    updatedAt.indexOf(termUpdatedAt) > -1 &&
+                    (row.status === terms.valid || row.status === terms.new || row.status === terms.updates);
             })
             this.filteredRowsCount = result.length;
             return result;

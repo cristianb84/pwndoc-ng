@@ -630,8 +630,8 @@ export default {
   },
 
   watch: {
-    value(value) {
-      this.updateInitialeValue(value)
+    async value(value) {
+      await this.updateInitialeValue(value)
     },
     editable(value) {
       //this.editor.setOptions({ editable: this.editable });
@@ -721,7 +721,7 @@ export default {
         } else {
           this.countChange++
         }
-        
+
         if (this.noSync) return;
         this.updateHTML();
       },
@@ -731,17 +731,27 @@ export default {
     this.affixRelativeElement += "-" +  this.ClassEditor;
     //this.editor.setOptions({ editable: this.editable });
     this.editor.setEditable(this.editable && this.initialeDataUpdated);
+    
+    if (typeof this.value === "undefined") {
+      this.value = "";
+    }
+
     if (
-      typeof this.value === "undefined" ||
       this.value === this.editor.getHTML()
     ) {
       return;
     }
     this.updateInitialeValue(this.value)
   },
-  beforeDestroy() {
+  async beforeDestroy() {
+    while(1){
+      if(this.state==1 && this.status=='connected') break;
+      else await this.sleep(100)
+    }
+    if(this.collab){
+      this.provider.destroy()
+    }
     this.editor.destroy();
-    this.provider.destroy()
   },
   computed: {
     formatIcon: function () {
@@ -903,6 +913,8 @@ export default {
       return colour;
     },
     updateHTML() {
+      if (!this.initialeDataUpdated) return;
+      
       console.log("updateHTML");
       this.json = this.editor.getJSON();
       this.html = this.editor.getHTML();
